@@ -56,6 +56,6 @@ private:
 	void radioClassifier(vector<float>& _muPos, vector<float>& _sigmaPos, vector<float>& _muNeg, vector<float>& _sigmaNeg,
 						Mat& _sampleFeatureValue, float& _radioMax, int& _radioMaxIndex);
 public:
-	void processFrame(Mat& _frame, Rect& _objectBox);
+	void track(Mat& _frame, Rect& _objectBox);
 	void init(Mat& _frame, Rect& _objectBox);
 };

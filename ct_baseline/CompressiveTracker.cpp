@@ -252,7 +252,7 @@ void CompressiveTracker::init(Mat& _frame, Rect& _objectBox)
 	classifierUpdate(samplePositiveFeatureValue, muPositive, sigmaPositive, learnRate);
 	classifierUpdate(sampleNegativeFeatureValue, muNegative, sigmaNegative, learnRate);
 }
-void CompressiveTracker::processFrame(Mat& _frame, Rect& _objectBox)
+void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 {
 	// predict
 	sampleRect(_frame, _objectBox, rSearchWindow,detectBox);

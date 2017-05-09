@@ -31,11 +31,14 @@ private:
 	int featureNum;
 	vector<vector<Rect>> features;
 	vector<vector<float>> featuresWeight;
+	vector<vector<int>> channelIdx;			//multi-channel features. Indicate Haar rectangle belongs to which channel
+	int channelNum;							//total channels
 	int rOuterPositive;
 	vector<Rect> samplePositiveBox;
 	vector<Rect> sampleNegativeBox;
 	int rSearchWindow;
-	Mat imageIntegral;
+	//Mat imageIntegral;
+	vector<Mat> imageIntegral;
 	Mat samplePositiveFeatureValue;
 	Mat sampleNegativeFeatureValue;
 	vector<float> muPositive;
@@ -52,9 +55,11 @@ private:
 	void sampleRect(Mat& _image, Rect& _objectBox, float _rInner, float _rOuter, int _maxSampleNum, vector<Rect>& _sampleBox);
 	void sampleRect(Mat& _image, Rect& _objectBox, float _srw, vector<Rect>& _sampleBox);
 	void getFeatureValue(Mat& _imageIntegral, vector<Rect>& _sampleBox, Mat& _sampleFeatureValue);
+	void getFeatureValue(vector<Mat>& _imageIntegral, vector<Rect>& _sampleBox, Mat& _sampleFeatureValue);
 	void classifierUpdate(Mat& _sampleFeatureValue, vector<float>& _mu, vector<float>& _sigma, float _learnRate);
 	void radioClassifier(vector<float>& _muPos, vector<float>& _sigmaPos, vector<float>& _muNeg, vector<float>& _sigmaNeg,
 						Mat& _sampleFeatureValue, float& _radioMax, int& _radioMaxIndex);
+	void generateChannelIndex(int sum, int tot, vector<int>& chIdx);
 public:
 	void track(Mat& _frame, Rect& _objectBox);
 	void init(Mat& _frame, Rect& _objectBox);

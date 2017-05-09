@@ -1,3 +1,6 @@
+//--seq_path D:/data_seq/Human7 --seq_name Human7 --start_frame 1 --end_frame 250 --nz 4 --initx 110 --inity 111 --initw 37 --inith 116
+//--seq_path D:/data_seq/Blurface --seq_name Blurface --start_frame 1 --end_frame 493 --nz 4 --initx 246 --inity 226 --initw 94 --inith 114
+
 #include "CompressiveTracker.h"
 #include "boost/program_options.hpp"
 #include "boost/filesystem.hpp"
@@ -75,7 +78,7 @@ int main(int argc, char** argv)
 		CompressiveTracker tracker;
 
 		cv::Rect initialization(initx, inity, initw, inith);
-		cv::Mat image, grayImage;
+		cv::Mat image;
 
 		//read first image
 		stringstream ss;
@@ -85,10 +88,9 @@ int main(int argc, char** argv)
 		string imgname;
 		ss >> imgname;
 		image = imread(imgname);
-		cvtColor(image, grayImage, CV_BGR2GRAY);
 
 		tic
-			tracker.init(grayImage, initialization);
+			tracker.init(image, initialization);
 
 		Rect rect = initialization;
 		for (int i = start_frame+1; i <= end_frame; ++i) {
@@ -101,9 +103,8 @@ int main(int argc, char** argv)
 			ss >> imgname;
 
 			cv::Mat image = cv::imread(imgname);
-			cvtColor(image, grayImage, CV_BGR2GRAY);
 
-			tracker.track(grayImage, rect);
+			tracker.track(image, rect);
 			result_file << rect.x << "	" << rect.y << "	" << rect.width << "	" << rect.height << endl;
 
 			cv::rectangle(image, rect, cv::Scalar(0, 0, 255), 2);

@@ -17,6 +17,7 @@ CompressiveTracker::CompressiveTracker(void)
 	sigmaPositive = vector<float>(featureNum, 1.0f);
 	sigmaNegative = vector<float>(featureNum, 1.0f);
 	learnRate = 0.85f;	// Learning rate parameter
+	channelNum = 3;
 }
 
 CompressiveTracker::~CompressiveTracker(void)
@@ -33,6 +34,7 @@ void CompressiveTracker::HaarFeature(Rect& _objectBox, int _numFeature)
 {
 	features = vector<vector<Rect>>(_numFeature, vector<Rect>());
 	featuresWeight = vector<vector<float>>(_numFeature, vector<float>());
+	channelIdx = vector<vector<int>>(_numFeature, vector<int>());
 	
 	int numRect;
 	Rect rectTemp;
@@ -55,6 +57,7 @@ void CompressiveTracker::HaarFeature(Rect& _objectBox, int _numFeature)
 			featuresWeight[i].push_back(weightTemp);
            
 		}
+		generateChannelIndex(numRect, channelNum, channelIdx[i]);
 	}
 }
 
@@ -192,6 +195,40 @@ void CompressiveTracker::getFeatureValue(Mat& _imageIntegral, vector<Rect>& _sam
 	}
 }
 
+// Compute the features of samples
+void CompressiveTracker::getFeatureValue(vector<Mat>& _imageIntegral, vector<Rect>& _sampleBox, Mat& _sampleFeatureValue)
+{
+	int sampleBoxSize = _sampleBox.size();
+	_sampleFeatureValue.create(featureNum, sampleBoxSize, CV_32F);
+	float tempValue;
+	int xMin;
+	int xMax;
+	int yMin;
+	int yMax;
+
+	for (int i=0; i<featureNum; i++)
+	{
+		for (int j=0; j<sampleBoxSize; j++)
+		{
+			tempValue = 0.0f;
+			for (int ch = 0; ch < channelNum; ++ch)
+				for (size_t k=channelIdx[i][ch]; k<channelIdx[i][ch+1]; k++)
+				{
+					xMin = _sampleBox[j].x + features[i][k].x;
+					xMax = _sampleBox[j].x + features[i][k].x + features[i][k].width;
+					yMin = _sampleBox[j].y + features[i][k].y;
+					yMax = _sampleBox[j].y + features[i][k].y + features[i][k].height;
+					tempValue += featuresWeight[i][k] * 
+						(_imageIntegral[ch].at<float>(yMin, xMin) +
+						_imageIntegral[ch].at<float>(yMax, xMax) -
+						_imageIntegral[ch].at<float>(yMin, xMax) -
+						_imageIntegral[ch].at<float>(yMax, xMin));
+				}
+			_sampleFeatureValue.at<float>(i,j) = tempValue;
+		}
+	}
+}
+
 // Update the mean and variance of the gaussian classifier
 void CompressiveTracker::classifierUpdate(Mat& _sampleFeatureValue, vector<float>& _mu, vector<float>& _sigma, float _learnRate)
 {
@@ -245,7 +282,15 @@ void CompressiveTracker::init(Mat& _frame, Rect& _objectBox)
 	sampleRect(_frame, _objectBox, rOuterPositive, 0, 1000000, samplePositiveBox);
 	sampleRect(_frame, _objectBox, rSearchWindow*1.5, rOuterPositive+4.0, 100, sampleNegativeBox);
 
-	integral(_frame, imageIntegral, CV_32F);
+	//integral(_frame, imageIntegral, CV_32F);
+	Mat hsv;
+	cvtColor(_frame, hsv, CV_BGR2HSV_FULL);
+	vector<Mat> chs;
+	split(hsv, chs);
+	imageIntegral = vector<Mat>(channelNum);
+	integral(chs[0], imageIntegral[0], CV_32F);
+	integral(chs[1], imageIntegral[1], CV_32F);
+	integral(chs[2], imageIntegral[2], CV_32F);
 
 	getFeatureValue(imageIntegral, samplePositiveBox, samplePositiveFeatureValue);
 	getFeatureValue(imageIntegral, sampleNegativeBox, sampleNegativeFeatureValue);
@@ -256,7 +301,16 @@ void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 {
 	// predict
 	sampleRect(_frame, _objectBox, rSearchWindow,detectBox);
-	integral(_frame, imageIntegral, CV_32F);
+	//integral(_frame, imageIntegral, CV_32F);
+	Mat hsv;
+	cvtColor(_frame, hsv, CV_BGR2HSV_FULL);
+	vector<Mat> chs;
+	split(hsv, chs);
+	imageIntegral = vector<Mat>(channelNum);
+	integral(chs[0], imageIntegral[0], CV_32F);
+	integral(chs[1], imageIntegral[1], CV_32F);
+	integral(chs[2], imageIntegral[2], CV_32F);
+
 	getFeatureValue(imageIntegral, detectBox, detectFeatureValue);
 	int radioMaxIndex;
 	float radioMax;
@@ -271,4 +325,15 @@ void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 	getFeatureValue(imageIntegral, sampleNegativeBox, sampleNegativeFeatureValue);
 	classifierUpdate(samplePositiveFeatureValue, muPositive, sigmaPositive, learnRate);
 	classifierUpdate(sampleNegativeFeatureValue, muNegative, sigmaNegative, learnRate);
+}
+
+void CompressiveTracker::generateChannelIndex(int sum, int tot, vector<int>& chIdx)
+{
+	chIdx.push_back(0);
+	for (int i = 0; i < tot - 1; ++i)
+	{
+		chIdx.push_back(rng.uniform(0, sum+1));
+	}
+	sort(chIdx.begin(), chIdx.end());
+	chIdx.push_back(sum);
 }

@@ -1,5 +1,17 @@
 //--seq_path D:/data_seq/Human7 --seq_name Human7 --start_frame 1 --end_frame 250 --nz 4 --initx 110 --inity 111 --initw 37 --inith 116
 //--seq_path D:/data_seq/Blurface --seq_name Blurface --start_frame 1 --end_frame 493 --nz 4 --initx 246 --inity 226 --initw 94 --inith 114
+//--seq_path D:/data_seq/david2 --seq_name david2 --start_frame 1 --end_frame 537 --nz 4 --initx 141 --inity 73 --initw 27 --inith 34
+//--seq_path D:/data_seq/Human8 --seq_name Human8 --start_frame 1 --end_frame 128 --nz 4 --initx 110 --inity 101 --initw 30 --inith 91
+//--seq_path D:/data_seq/woman --seq_name woman --start_frame 1 --end_frame 597 --nz 4 --initx 213 --inity 121 --initw 21 --inith 95
+//--seq_path D:/data_seq/Trellis --seq_name Trellis --start_frame 1 --end_frame 569 --nz 4 --initx 146 --inity 54 --initw 68 --inith 101
+//--seq_path D:/data_seq/Man --seq_name Man --start_frame 1 --end_frame 134 --nz 4 --initx 69 --inity 48 --initw 26 --inith 39
+//--seq_path D:/data_seq/Lemming --seq_name Lemming --start_frame 1 --end_frame 1336 --nz 4 --initx 40 --inity 199 --initw 61 --inith 103
+//--seq_path D:/data_seq/Panda --seq_name Panda --start_frame 1 --end_frame 1000 --nz 4 --initx 58 --inity 100 --initw 28 --inith 23
+//--seq_path D:/data_seq/Rubik --seq_name Rubik --start_frame 1 --end_frame 1997 --nz 4 --initx 276 --inity 161 --initw 73 --inith 74
+//--seq_path D:/data_seq/Girl --seq_name Girl --start_frame 1 --end_frame 500 --nz 4 --initx 57 --inity 21 --initw 31 --inith 45
+//--seq_path D:/data_seq/Fish --seq_name Fish --start_frame 1 --end_frame 476 --nz 4 --initx 134 --inity 55 --initw 60 --inith 88
+//--seq_path D:/data_seq/MountainBike --seq_name MountainBike --start_frame 1 --end_frame 228 --nz 4 --initx 319 --inity 185 --initw 67 --inith 56
+//--seq_path D:/data_seq/Shaking --seq_name Shaking --start_frame 1 --end_frame 365 --nz 4 --initx 225 --inity 135 --initw 61 --inith 71
 
 #include "CompressiveTracker.h"
 #include "boost/program_options.hpp"
@@ -11,7 +23,7 @@
 #include <fstream>
 #include <iomanip>
 
-//#define SAVE_IMAGE
+#define SAVE_IMAGE
 
 using namespace boost::program_options;
 using namespace std;
@@ -91,6 +103,9 @@ int main(int argc, char** argv)
 
 		tic
 			tracker.init(image, initialization);
+		rectangle(image, initialization, cv::Scalar(0,0,255), 2);
+		cv::imshow("result", image);
+		cv::waitKey(0);
 
 		Rect rect = initialization;
 		for (int i = start_frame+1; i <= end_frame; ++i) {
@@ -109,7 +124,7 @@ int main(int argc, char** argv)
 
 			cv::rectangle(image, rect, cv::Scalar(0, 0, 255), 2);
 			cv::imshow("result", image);
-			cout << imgname << endl;
+			//cout << imgname << endl;
 			char k = cv::waitKey(2);
 			if (k=='q') return 0;
 			if (k=='p') cv::waitKey(0);

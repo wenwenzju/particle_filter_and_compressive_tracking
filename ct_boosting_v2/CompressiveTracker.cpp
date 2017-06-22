@@ -5,7 +5,7 @@ using namespace cv;
 using namespace std;
 
 //------------------------------------------------
-CompressiveTracker::CompressiveTracker(void)
+CompressiveTracker::CompressiveTracker(void) : strongClassifier(20, 50)
 {
 	featureMinNumRect = 2;
 	featureMaxNumRect = 4;	// number of rectangle from 2 to 4
@@ -229,6 +229,35 @@ void CompressiveTracker::getFeatureValue(vector<Mat>& _imageIntegral, vector<Rec
 	}
 }
 
+void CompressiveTracker::getFeatureValue(vector<Mat>& _imageIntegral, Rect& _sampleBox, Mat& _sampleFeatureValue)
+{
+	_sampleFeatureValue.create(featureNum, 1, CV_32F);
+	float tempValue;
+	int xMin;
+	int xMax;
+	int yMin;
+	int yMax;
+
+	for (int i=0; i<featureNum; i++)
+	{
+		tempValue = 0.0f;
+		for (int ch = 0; ch < channelNum; ++ch)
+			for (size_t k=channelIdx[i][ch]; k<channelIdx[i][ch+1]; k++)
+			{
+				xMin = _sampleBox.x + features[i][k].x;
+				xMax = _sampleBox.x + features[i][k].x + features[i][k].width;
+				yMin = _sampleBox.y + features[i][k].y;
+				yMax = _sampleBox.y + features[i][k].y + features[i][k].height;
+				tempValue += featuresWeight[i][k] * 
+					(_imageIntegral[ch].at<float>(yMin, xMin) +
+					_imageIntegral[ch].at<float>(yMax, xMax) -
+					_imageIntegral[ch].at<float>(yMin, xMax) -
+					_imageIntegral[ch].at<float>(yMax, xMin));
+			}
+		_sampleFeatureValue.at<float>(i,0) = tempValue;
+	}
+}
+
 // Update the mean and variance of the gaussian classifier
 void CompressiveTracker::classifierUpdate(Mat& _sampleFeatureValue, vector<float>& _mu, vector<float>& _sigma, float _learnRate)
 {
@@ -244,6 +273,26 @@ void CompressiveTracker::classifierUpdate(Mat& _sampleFeatureValue, vector<float
 
 		_mu[i] = _mu[i]*_learnRate + (1.0f-_learnRate)*muTemp.val[0];	// equation 6 in paper
 	}
+}
+
+void CompressiveTracker::classifierUpdate(Mat& posFeatureValue, Mat& negFeatureValue)
+{
+	static std::vector<float> posMu(featureNum), negMu(featureNum), posSig(featureNum), negSig(featureNum);
+	Scalar muTemp, sigmaTemp;
+	for (int i = 0; i < featureNum; ++i)
+	{
+		meanStdDev(posFeatureValue.row(i), muTemp, sigmaTemp);
+		posMu[i] = muTemp.val[0];
+		posSig[i] = sigmaTemp.val[0];
+	}
+	for (int i = 0; i < featureNum; ++i)
+	{
+		meanStdDev(negFeatureValue.row(i), muTemp, sigmaTemp);
+		negMu[i] = muTemp.val[0];
+		negSig[i] = sigmaTemp.val[0];
+	}
+
+	strongClassifier.update(Representation(posFeatureValue), Representation(negFeatureValue), learnRate);
 }
 
 // Compute the ratio classifier 
@@ -273,6 +322,92 @@ void CompressiveTracker::radioClassifier(vector<float>& _muPos, vector<float>& _
 		}
 	}
 }
+void CompressiveTracker::radioClassifier(Mat& sampleFeatureValue, float& radioMax, int& radioMaxIndex)
+{
+	float sumRadio;
+	radioMax = -FLT_MAX;
+	radioMaxIndex = 0;
+	float pPos;
+	float pNeg;
+	int sampleBoxNum = sampleFeatureValue.cols;
+
+	//strongClassifier.show();
+	for (int j=0; j<sampleBoxNum; j++)
+	{
+		sumRadio = 0.0f;
+// 		Representation rep(sampleFeatureValue.col(j));
+// 
+// 		Mat tmp = rep._x.getMat();
+		//cout << sampleFeatureValue.col(j) << endl;
+
+		sumRadio = strongClassifier.classify(Representation(sampleFeatureValue.col(j)));
+		//cout << sumRadio << endl;
+		if (radioMax < sumRadio)
+		{
+			radioMax = sumRadio;
+			radioMaxIndex = j;
+		}
+	}
+
+}
+
+Rect CompressiveTracker::radioClassifier(Mat& sampleFeatureValue, vector<Rect>& rects)
+{
+	float sumRadio;
+	float radioMax = -FLT_MAX;
+	int radioMaxIndex = 0;
+	float pPos;
+	float pNeg;
+	int sampleBoxNum = sampleFeatureValue.cols;
+
+	vector<float> scores(sampleBoxNum,0.f);
+	//strongClassifier.show();
+	int sumX = 0, sumY = 0, sumW = 0, sumH = 0, cnt = 0;
+	for (int j=0; j<sampleBoxNum; j++)
+	{
+		sumRadio = 0.0f;
+		// 		Representation rep(sampleFeatureValue.col(j));
+		// 
+		// 		Mat tmp = rep._x.getMat();
+		//cout << sampleFeatureValue.col(j) << endl;
+
+		sumRadio = strongClassifier.classify(Representation(sampleFeatureValue.col(j)));
+		//cout << sumRadio << endl;
+		if (radioMax < sumRadio)
+		{
+			radioMax = sumRadio;
+			radioMaxIndex = j;
+		}
+		scores[j] = sumRadio;
+
+		//if (sumRadio > 0)
+		//{
+		//	sumX += rects[j].x; 
+		//	sumY += rects[j].y;
+		//	sumW += rects[j].width;
+		//	sumH += rects[j].height;
+		//	++cnt;
+		//}
+	}
+	//int sumX = 0, sumY = 0, sumW = 0, sumH = 0, cnt = 0;
+	for (int j = radioMaxIndex; j < sampleBoxNum; ++j)
+	{
+		if (scores[j] == radioMax) 
+		{
+			sumX += rects[j].x; 
+			sumY += rects[j].y;
+			sumW += rects[j].width;
+			sumH += rects[j].height;
+			++cnt;
+			
+		}
+	}
+	//if (radioMax < 0)
+	//	cout << "Max score is still negative!!!!!!!!!" << endl;
+	//cout << cnt << endl;
+	return Rect(cvRound(1.*sumX/cnt), cvRound(1.*sumY/cnt), cvRound(1.*sumW/cnt), cvRound(1.*sumH/cnt));
+}
+
 void CompressiveTracker::init(Mat& _frame, Rect& _objectBox)
 {
 	// compute feature template
@@ -294,11 +429,10 @@ void CompressiveTracker::init(Mat& _frame, Rect& _objectBox)
 
 	getFeatureValue(imageIntegral, samplePositiveBox, samplePositiveFeatureValue);
 	getFeatureValue(imageIntegral, sampleNegativeBox, sampleNegativeFeatureValue);
+	//classifierUpdate(samplePositiveFeatureValue, sampleNegativeFeatureValue);
+	//classifierUpdate(imageIntegral, samplePositiveFeatureValue, sampleNegativeFeatureValue, _objectBox);
 
-	learnRate = 0.f;
-	classifierUpdate(samplePositiveFeatureValue, muPositive, sigmaPositive, learnRate);
-	classifierUpdate(sampleNegativeFeatureValue, muNegative, sigmaNegative, learnRate);
-	learnRate = 0.85f;
+	strongClassifier.init(Representation(samplePositiveFeatureValue), Representation(sampleNegativeFeatureValue));
 }
 void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 {
@@ -317,8 +451,10 @@ void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 	getFeatureValue(imageIntegral, detectBox, detectFeatureValue);
 	int radioMaxIndex;
 	float radioMax;
-	radioClassifier(muPositive, sigmaPositive, muNegative, sigmaNegative, detectFeatureValue, radioMax, radioMaxIndex);
-	_objectBox = detectBox[radioMaxIndex];
+	//radioClassifier(muPositive, sigmaPositive, muNegative, sigmaNegative, detectFeatureValue, radioMax, radioMaxIndex);
+	//radioClassifier(detectFeatureValue, radioMax, radioMaxIndex);
+	//_objectBox = detectBox[radioMaxIndex];
+	_objectBox = radioClassifier(detectFeatureValue, detectBox);
 
 	// update
 	sampleRect(_frame, _objectBox, rOuterPositive, 0.0, 1000000, samplePositiveBox);
@@ -326,8 +462,8 @@ void CompressiveTracker::track(Mat& _frame, Rect& _objectBox)
 	
 	getFeatureValue(imageIntegral, samplePositiveBox, samplePositiveFeatureValue);
 	getFeatureValue(imageIntegral, sampleNegativeBox, sampleNegativeFeatureValue);
-	classifierUpdate(samplePositiveFeatureValue, muPositive, sigmaPositive, learnRate);
-	classifierUpdate(sampleNegativeFeatureValue, muNegative, sigmaNegative, learnRate);
+	//classifierUpdate(samplePositiveFeatureValue, sampleNegativeFeatureValue);
+	classifierUpdate(samplePositiveFeatureValue, sampleNegativeFeatureValue);
 }
 
 void CompressiveTracker::generateChannelIndex(int sum, int tot, vector<int>& chIdx)
